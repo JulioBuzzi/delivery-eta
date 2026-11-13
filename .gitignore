@@ -1,0 +1,5 @@
+# o dataset é baixado automaticamente (19 MB)
+data/raw/
+__pycache__/
+.ipynb_checkpoints/
+.venv/

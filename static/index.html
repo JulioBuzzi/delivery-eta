@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prazo de entrega com ML · pontualidade x prazo prometido</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #fff; --ink: #1d1d1b; --ink2: #5c5c58; --ink3: #8a8a85; --line: #e6e6e3;
+    --regra: #eb6834; --mediana: #2a78d6; --quantil: #1baf7a; --ok: #127a52; --atraso: #c2410c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 28px 18px 40px; }
+  h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.02em; }
+  h2 { font-size: 18px; margin: 34px 0 6px; }
+  .sub { color: var(--ink2); margin: 0; max-width: 760px; }
+  .metricas { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 6px; }
+  .metrica { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  .metrica b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+  .metrica span { color: var(--ink3); font-size: 12.5px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--card); margin: 10px 0 14px; }
+  .seg button { border: 0; background: none; padding: 8px 16px; font: inherit; cursor: pointer; color: var(--ink2); border-right: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .seg button:last-child { border-right: 0; }
+  .seg button.ativo { background: var(--ink); color: #fff; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h3 { margin: 0 0 12px; font-size: 14.5px; display: flex; gap: 8px; align-items: center; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .linha { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .linha span { color: var(--ink2); font-size: 13.5px; }
+  .faixas { margin-top: 12px; }
+  .faixas small { color: var(--ink3); font-size: 12px; }
+  .barras { position: relative; display: flex; gap: 4px; align-items: flex-end; height: 70px; margin-top: 6px; border-bottom: 1px solid var(--line); }
+  .barras div { flex: 1; border-radius: 4px 4px 0 0; position: relative; }
+  .barras .meta { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--ink3); height: 0; }
+  .rot { display: flex; gap: 4px; margin-top: 3px; }
+  .rot span { flex: 1; text-align: center; font-size: 10.5px; color: var(--ink3); }
+  .vals { display: flex; gap: 4px; }
+  .vals span { flex: 1; text-align: center; font-size: 11px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+  .melhor { outline: 2px solid var(--quantil); outline-offset: -1px; }
+  .pedido { display: grid; grid-template-columns: 1.1fr 1fr; gap: 14px; }
+  .det { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 14px; }
+  .det dt { color: var(--ink3); }
+  .det dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .app { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fafaf8; }
+  .app .grande { font-size: 24px; font-weight: 650; margin: 2px 0 8px; font-variant-numeric: tabular-nums; }
+  .app .cmp { font-size: 13.5px; color: var(--ink2); }
+  .resultado { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 14px; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .late { color: var(--atraso); font-weight: 600; }
+  .botoes { margin-top: 12px; display: flex; gap: 8px; }
+  .botoes button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer; font: inherit; }
+  .nota { color: var(--ink3); font-size: 13px; margin-top: 10px; }
+  footer { margin-top: 34px; color: var(--ink3); font-size: 13px; }
+  footer a { color: var(--ink2); }
+  @media (max-width: 760px) { .cards, .pedido { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⏱️ Quanto prometer no app?</h1>
+  <p class="sub">Prever o tempo de entrega de 197 mil pedidos reais do DoorDash e escolher o prazo que aparece pro cliente.
+    Se o prazo for curto demais, a entrega atrasa. Se for longo demais, o cliente desiste de pedir.
+    Resultados da semana de teste (12 a 18/02/2015), que nenhum modelo viu no treino.</p>
+
+  <div class="metricas">
+    <div class="metrica"><b>10,3 min</b><span>erro médio do LightGBM (regra: 12,9 min)</span></div>
+    <div class="metrica"><b>−3,5 min</b><span>de prazo prometido, com mais pontualidade (meta 90%)</span></div>
+    <div class="metrica"><b>89% a 91%</b><span>no prazo em todo tipo de pedido (regra: 71% a 98%)</span></div>
+  </div>
+
+  <h2>1. Escolha a meta de pontualidade</h2>
+  <p class="sub">Cada método calcula o prazo de um jeito, e todos são recalibrados a cada hora com as entregas das últimas 24h.</p>
+  <div class="seg" id="alvos"></div>
+  <div class="cards" id="cards"></div>
+  <p class="nota">As barras mostram a % entregue no prazo por tipo de pedido (do mais rápido ao mais lento, pelo tempo previsto). A linha tracejada é a meta.</p>
+
+  <h2>2. Pedidos reais da semana de teste</h2>
+  <p class="sub">300 pedidos sorteados. O prazo do app é o do LightGBM quantílico + conformal, com meta de 90%.</p>
+  <div class="card" style="margin-top:12px">
+    <div class="pedido">
+      <dl class="det" id="det"></dl>
+      <div class="app" id="app"></div>
+    </div>
+    <div class="botoes"><button id="ant">← anterior</button><button id="prox">outro pedido →</button><button id="atrasado">mostrar um atrasado</button></div>
+  </div>
+
+  <footer>
+    Dados: <i>DoorDash ETA Prediction</i> (teste técnico público do DoorDash, jan–fev/2015, com ruído adicionado pela empresa).
+    Código e metodologia: <a href="https://github.com/JulioBuzzi/delivery-eta">github.com/JulioBuzzi/delivery-eta</a> ·
+    Modelo: <a href="https://huggingface.co/JulioBuzzi/delivery-eta">huggingface.co/JulioBuzzi/delivery-eta</a>
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const pct = (x) => (x * 100).toFixed(1).replace(".", ",") + "%";
+const num = (x, d = 1) => x.toFixed(d).replace(".", ",");
+const METODOS = [
+  ["regra", "Regra (estimativas da plataforma + margem)", "var(--regra)"],
+  ["mediana", "LightGBM mediana + margem", "var(--mediana)"],
+  ["quantil", "LightGBM quantílico + conformal", "var(--quantil)"],
+];
+
+fetch("demo.json").then((r) => r.json()).then((d) => {
+  let alvo = "0.90";
+  $("alvos").innerHTML = d.alvos.map((a) => `<button data-a="${a}">${Math.round(a * 100)}%</button>`).join("");
+
+  function cards() {
+    document.querySelectorAll("#alvos button").forEach((b) => b.classList.toggle("ativo", b.dataset.a === alvo));
+    const meta = parseFloat(alvo);
+    $("cards").innerHTML = METODOS.map(([k, nome, cor]) => {
+      const m = d.metodos[k][alvo];
+      const min = 0.55, max = 1.0;
+      const h = (v) => Math.max(2, ((v - min) / (max - min)) * 70);
+      return `<div class="card ${k === "quantil" ? "melhor" : ""}">
+        <h3><span class="dot" style="background:${cor}"></span>${nome}</h3>
+        <div class="linha"><span>Pontualidade</span><b>${pct(m.pontualidade)}</b></div>
+        <div class="linha"><span>Prazo médio prometido</span><b>${num(m.prazo_medio)} min</b></div>
+        <div class="linha"><span>Atraso &gt; 10 min</span><b>${pct(m.atraso_10min)}</b></div>
+        <div class="faixas"><small>No prazo, por tipo de pedido</small>
+          <div class="barras">${m.por_faixa.map((v) => `<div style="height:${h(v)}px;background:${cor}" title="${pct(v)}"></div>`).join("")}
+            <div class="meta" style="bottom:${h(meta)}px"></div></div>
+          <div class="vals">${m.por_faixa.map((v) => `<span>${Math.round(v * 100)}</span>`).join("")}</div>
+          <div class="rot">${["muito rápido", "rápido", "médio", "lento", "muito lento"].map((f) => `<span>${f}</span>`).join("")}</div>
+        </div></div>`;
+    }).join("");
+  }
+  document.querySelectorAll("#alvos button").forEach((b) => b.onclick = () => { alvo = b.dataset.a; cards(); });
+  cards();
+
+  // ---------------------------------------------------------------- pedidos
+  const ex = d.exemplos;
+  let i = 0;
+  const arred5 = (v, f) => f(v / 5) * 5;
+  function pedido() {
+    const e = ex[i];
+    const fila = e.fila_por_entregador === null ? "sem dado" : num(e.fila_por_entregador, 2).replace(",00", "");
+    $("det").innerHTML = `
+      <dt>Quando</dt><dd>${e.quando} · mercado ${e.mercado ?? "?"}</dd>
+      <dt>Loja</dt><dd>${e.categoria} · ${e.loja_entregas_antes} entregas já concluídas</dd>
+      <dt>Itens</dt><dd>${e.itens} ${e.itens === 1 ? "item" : "itens"} · US$ ${num(e.subtotal, 2)}</dd>
+      <dt>Fila por entregador</dt><dd>${fila}</dd>
+      <dt>Deslocamento estimado</dt><dd>${e.deslocamento_min === null ? "sem dado" : num(e.deslocamento_min) + " min"}</dd>
+      <dt>Tempo previsto (mediana)</dt><dd>${num(e.previsto_mediana)} min</dd>`;
+    const ini = arred5(e.previsto_mediana, Math.floor), fim = arred5(e.prazo, Math.ceil);
+    const noPrazo = e.real <= e.prazo, regraOk = e.real <= e.regra_prazo;
+    $("app").innerHTML = `
+      <div style="color:var(--ink3);font-size:12.5px">O app mostraria</div>
+      <div class="grande">${ini}–${fim} min</div>
+      <div class="cmp">Prazo do modelo: ${num(e.prazo)} min · a regra prometeria ${num(e.regra_prazo)} min ${regraOk ? "" : "(e atrasaria)"}</div>
+      <div class="resultado">Chegou em <b>${num(e.real)} min</b> →
+        ${noPrazo ? `<span class="ok">no prazo</span> (${num(e.prazo - e.real)} min antes)` : `<span class="late">atrasou ${num(e.real - e.prazo)} min</span>`}</div>`;
+  }
+  $("prox").onclick = () => { i = (i + 1) % ex.length; pedido(); };
+  $("ant").onclick = () => { i = (i - 1 + ex.length) % ex.length; pedido(); };
+  $("atrasado").onclick = () => {
+    for (let k = 1; k <= ex.length; k++) { const j = (i + k) % ex.length; if (ex[j].real > ex[j].prazo) { i = j; break; } }
+    pedido();
+  };
+  pedido();
+}).catch((e) => { document.body.insertAdjacentHTML("afterbegin", `<p style="padding:20px">Erro ao carregar demo.json: ${e}</p>`); });
+</script>
+</body>
+</html>
